@@ -132,15 +132,15 @@ namespace NzbDrone.Core.Update
             _diskTransferService.TransferFolder(_appFolderInfo.GetUpdateClientFolder(), updateSandboxFolder, TransferMode.Move, false);
 
             // Set executable flag on update app
-            if (OsInfo.IsOsx)
+            if (OsInfo.IsOsx || (OsInfo.IsLinux && PlatformInfo.IsNetCore))
             {
-                _diskProvider.SetPermissions(_appFolderInfo.GetUpdateClientExePath(updatePackage.Version), "0755", null, null);
+                _diskProvider.SetPermissions(_appFolderInfo.GetUpdateClientExePath(updatePackage.Runtime), "0755", null, null);
             }
 
-            _logger.Info("Starting update client {0}", _appFolderInfo.GetUpdateClientExePath(updatePackage.Version));
+            _logger.Info("Starting update client {0}", _appFolderInfo.GetUpdateClientExePath(updatePackage.Runtime));
             _logger.ProgressInfo("Lidarr will restart shortly.");
 
-            _processProvider.Start(_appFolderInfo.GetUpdateClientExePath(updatePackage.Version), GetUpdaterArgs(updateSandboxFolder));
+            _processProvider.Start(_appFolderInfo.GetUpdateClientExePath(updatePackage.Runtime), GetUpdaterArgs(updateSandboxFolder));
         }
 
         private void EnsureValidBranch(UpdatePackage package)
