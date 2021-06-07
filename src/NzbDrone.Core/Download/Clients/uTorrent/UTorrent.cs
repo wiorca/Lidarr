@@ -118,7 +118,7 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
                 item.Title = torrent.Name;
                 item.TotalSize = torrent.Size;
                 item.Category = torrent.Label;
-                item.DownloadClient = Definition.Name;
+                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this);
                 item.RemainingSize = torrent.Remaining;
                 item.SeedRatio = torrent.Ratio;
 
@@ -291,7 +291,11 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to test uTorrent");
-                return new NzbDroneValidationFailure(string.Empty, "Unknown exception: " + ex.Message);
+
+                return new NzbDroneValidationFailure("Host", "Unable to connect to uTorrent")
+                       {
+                           DetailedDescription = ex.Message
+                       };
             }
 
             return null;

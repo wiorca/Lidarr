@@ -27,7 +27,6 @@ class ArtistEditorFooter extends Component {
       monitored: NO_CHANGE,
       qualityProfileId: NO_CHANGE,
       metadataProfileId: NO_CHANGE,
-      albumFolder: NO_CHANGE,
       rootFolderPath: NO_CHANGE,
       savingTags: false,
       isDeleteArtistModalOpen: false,
@@ -48,7 +47,6 @@ class ArtistEditorFooter extends Component {
         monitored: NO_CHANGE,
         qualityProfileId: NO_CHANGE,
         metadataProfileId: NO_CHANGE,
-        albumFolder: NO_CHANGE,
         rootFolderPath: NO_CHANGE,
         savingTags: false
       });
@@ -74,9 +72,6 @@ class ArtistEditorFooter extends Component {
         break;
       case 'monitored':
         this.props.onSaveSelected({ [name]: value === 'monitored' });
-        break;
-      case 'albumFolder':
-        this.props.onSaveSelected({ [name]: value === 'yes' });
         break;
       default:
         this.props.onSaveSelected({ [name]: value });
@@ -143,7 +138,7 @@ class ArtistEditorFooter extends Component {
       isDeleting,
       isOrganizingArtist,
       isRetaggingArtist,
-      showMetadataProfile,
+      columns,
       onOrganizeArtistPress,
       onRetagArtistPress
     } = this.props;
@@ -152,7 +147,6 @@ class ArtistEditorFooter extends Component {
       monitored,
       qualityProfileId,
       metadataProfileId,
-      albumFolder,
       rootFolderPath,
       savingTags,
       isTagsModalOpen,
@@ -165,12 +159,6 @@ class ArtistEditorFooter extends Component {
       { key: NO_CHANGE, value: 'No Change', disabled: true },
       { key: 'monitored', value: 'Monitored' },
       { key: 'unmonitored', value: 'Unmonitored' }
-    ];
-
-    const albumFolderOptions = [
-      { key: NO_CHANGE, value: 'No Change', disabled: true },
-      { key: 'yes', value: 'Yes' },
-      { key: 'no', value: 'No' }
     ];
 
     return (
@@ -190,70 +178,87 @@ class ArtistEditorFooter extends Component {
           />
         </div>
 
-        <div className={styles.inputContainer}>
-          <ArtistEditorFooterLabel
-            label="Quality Profile"
-            isSaving={isSaving && qualityProfileId !== NO_CHANGE}
-          />
-
-          <QualityProfileSelectInputConnector
-            name="qualityProfileId"
-            value={qualityProfileId}
-            includeNoChange={true}
-            isDisabled={!selectedCount}
-            onChange={this.onInputChange}
-          />
-        </div>
-
         {
-          showMetadataProfile &&
-            <div className={styles.inputContainer}>
-              <ArtistEditorFooterLabel
-                label="Metadata Profile"
-                isSaving={isSaving && metadataProfileId !== NO_CHANGE}
-              />
+          columns.map((column) => {
+            const {
+              name,
+              isVisible
+            } = column;
 
-              <MetadataProfileSelectInputConnector
-                name="metadataProfileId"
-                value={metadataProfileId}
-                includeNoChange={true}
-                includeNone={true}
-                isDisabled={!selectedCount}
-                onChange={this.onInputChange}
-              />
-            </div>
+            if (!isVisible) {
+              return null;
+            }
+
+            if (name === 'qualityProfileId') {
+              return (
+                <div
+                  key={name}
+                  className={styles.inputContainer}
+                >
+                  <ArtistEditorFooterLabel
+                    label="Quality Profile"
+                    isSaving={isSaving && qualityProfileId !== NO_CHANGE}
+                  />
+
+                  <QualityProfileSelectInputConnector
+                    name="qualityProfileId"
+                    value={qualityProfileId}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+              );
+            }
+
+            if (name === 'metadataProfileId') {
+              return (
+                <div
+                  key={name}
+                  className={styles.inputContainer}
+                >
+                  <ArtistEditorFooterLabel
+                    label="Metadata Profile"
+                    isSaving={isSaving && metadataProfileId !== NO_CHANGE}
+                  />
+
+                  <MetadataProfileSelectInputConnector
+                    name="metadataProfileId"
+                    value={metadataProfileId}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+              );
+            }
+
+            if (name === 'path') {
+              return (
+                <div
+                  key={name}
+                  className={styles.inputContainer}
+                >
+                  <ArtistEditorFooterLabel
+                    label="Root Folder"
+                    isSaving={isSaving && rootFolderPath !== NO_CHANGE}
+                  />
+
+                  <RootFolderSelectInputConnector
+                    name="rootFolderPath"
+                    value={rootFolderPath}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    selectedValueOptions={{ includeFreeSpace: false }}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+              );
+            }
+
+            return null;
+          })
         }
-
-        <div className={styles.inputContainer}>
-          <ArtistEditorFooterLabel
-            label="Album Folder"
-            isSaving={isSaving && albumFolder !== NO_CHANGE}
-          />
-
-          <SelectInput
-            name="albumFolder"
-            value={albumFolder}
-            values={albumFolderOptions}
-            isDisabled={!selectedCount}
-            onChange={this.onInputChange}
-          />
-        </div>
-
-        <div className={styles.inputContainer}>
-          <ArtistEditorFooterLabel
-            label="Root Folder"
-            isSaving={isSaving && rootFolderPath !== NO_CHANGE}
-          />
-
-          <RootFolderSelectInputConnector
-            name="rootFolderPath"
-            value={rootFolderPath}
-            includeNoChange={true}
-            isDisabled={!selectedCount}
-            selectedValueOptions={{ includeFreeSpace: false }}
-            onChange={this.onInputChange}
-          />
-        </div>
 
         <div className={styles.buttonContainer}>
           <div className={styles.buttonContainerContent}>
@@ -342,6 +347,7 @@ ArtistEditorFooter.propTypes = {
   isOrganizingArtist: PropTypes.bool.isRequired,
   isRetaggingArtist: PropTypes.bool.isRequired,
   showMetadataProfile: PropTypes.bool.isRequired,
+  columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   onSaveSelected: PropTypes.func.isRequired,
   onOrganizeArtistPress: PropTypes.func.isRequired,
   onRetagArtistPress: PropTypes.func.isRequired

@@ -17,13 +17,14 @@ namespace NzbDrone.Core.Blacklisting
         bool Blacklisted(int artistId, ReleaseInfo release);
         PagingSpec<Blacklist> Paged(PagingSpec<Blacklist> pagingSpec);
         void Delete(int id);
+        void Delete(List<int> ids);
     }
 
     public class BlacklistService : IBlacklistService,
 
                                     IExecute<ClearBlacklistCommand>,
                                     IHandle<DownloadFailedEvent>,
-                                    IHandleAsync<ArtistDeletedEvent>
+                                    IHandleAsync<ArtistsDeletedEvent>
     {
         private readonly IBlacklistRepository _blacklistRepository;
 
@@ -68,6 +69,11 @@ namespace NzbDrone.Core.Blacklisting
         public void Delete(int id)
         {
             _blacklistRepository.Delete(id);
+        }
+
+        public void Delete(List<int> ids)
+        {
+            _blacklistRepository.DeleteMany(ids);
         }
 
         private bool SameNzb(Blacklist item, ReleaseInfo release)
@@ -155,11 +161,9 @@ namespace NzbDrone.Core.Blacklisting
             _blacklistRepository.Insert(blacklist);
         }
 
-        public void HandleAsync(ArtistDeletedEvent message)
+        public void HandleAsync(ArtistsDeletedEvent message)
         {
-            var blacklisted = _blacklistRepository.BlacklistedByArtist(message.Artist.Id);
-
-            _blacklistRepository.DeleteMany(blacklisted);
+            _blacklistRepository.DeleteForArtists(message.Artists.Select(x => x.Id).ToList());
         }
     }
 }

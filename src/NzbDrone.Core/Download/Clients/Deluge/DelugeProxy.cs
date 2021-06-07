@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
         string[] GetAvailablePlugins(DelugeSettings settings);
         string[] GetEnabledPlugins(DelugeSettings settings);
         string[] GetAvailableLabels(DelugeSettings settings);
+        DelugeLabel GetLabelOptions(DelugeSettings settings);
         void SetTorrentLabel(string hash, string label, DelugeSettings settings);
         void SetTorrentConfiguration(string hash, string key, object value, DelugeSettings settings);
         void SetTorrentSeedingConfiguration(string hash, TorrentSeedConfiguration seedConfiguration, DelugeSettings settings);
@@ -156,6 +157,13 @@ namespace NzbDrone.Core.Download.Clients.Deluge
             return response;
         }
 
+        public DelugeLabel GetLabelOptions(DelugeSettings settings)
+        {
+            var response = ProcessRequest<DelugeLabel>(settings, "label.get_options", settings.MusicCategory);
+
+            return response;
+        }
+
         public void SetTorrentConfiguration(string hash, string key, object value, DelugeSettings settings)
         {
             var arguments = new Dictionary<string, object>();
@@ -266,6 +274,11 @@ namespace NzbDrone.Core.Download.Clients.Deluge
             }
             catch (WebException ex)
             {
+                if (ex.Status == WebExceptionStatus.TrustFailure)
+                {
+                    throw new DownloadClientUnavailableException("Unable to connect to Deluge, certificate validation failed.", ex);
+                }
+
                 throw new DownloadClientUnavailableException("Unable to connect to Deluge, please check your settings", ex);
             }
         }

@@ -95,7 +95,7 @@ namespace NzbDrone.Core.Download.Clients.DownloadStation
                 var item = new DownloadClientItem()
                 {
                     Category = Settings.MusicCategory,
-                    DownloadClient = Definition.Name,
+                    DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this),
                     DownloadId = CreateDownloadId(nzb.Id, serialNumber),
                     Title = nzb.Title,
                     TotalSize = nzb.Size,
@@ -286,7 +286,11 @@ namespace NzbDrone.Core.Download.Clients.DownloadStation
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error testing Torrent Download Station");
-                return new NzbDroneValidationFailure(string.Empty, "Unknown exception: " + ex.Message);
+
+                return new NzbDroneValidationFailure("Host", "Unable to connect to Usenet Download Station")
+                       {
+                           DetailedDescription = ex.Message
+                       };
             }
         }
 

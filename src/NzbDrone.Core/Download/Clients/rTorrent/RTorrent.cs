@@ -120,7 +120,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
                 }
 
                 var item = new DownloadClientItem();
-                item.DownloadClient = Definition.Name;
+                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this);
                 item.Title = torrent.Name;
                 item.DownloadId = torrent.Hash;
                 item.OutputPath = _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(torrent.Path));
@@ -208,7 +208,11 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to test rTorrent");
-                return new NzbDroneValidationFailure(string.Empty, "Unknown exception: " + ex.Message);
+
+                return new NzbDroneValidationFailure("Host", "Unable to connect to rTorrent")
+                       {
+                           DetailedDescription = ex.Message
+                       };
             }
 
             return null;

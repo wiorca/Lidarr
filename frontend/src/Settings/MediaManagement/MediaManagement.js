@@ -370,7 +370,7 @@ class MediaManagement extends Component {
                         <FormInputGroup
                           type={inputTypes.CHECK}
                           name="setPermissionsLinux"
-                          helpText="Should chmod/chown be run when files are imported/renamed?"
+                          helpText="Should chmod be run when files are imported/renamed?"
                           helpTextWarning="If you're unsure what these settings do, do not alter them."
                           onChange={onInputChange}
                           {...settings.setPermissionsLinux}
@@ -381,46 +381,15 @@ class MediaManagement extends Component {
                         advancedSettings={advancedSettings}
                         isAdvanced={true}
                       >
-                        <FormLabel>File chmod mode</FormLabel>
+                        <FormLabel>chmod Folder</FormLabel>
 
                         <FormInputGroup
-                          type={inputTypes.TEXT}
-                          name="fileChmod"
-                          helpText="Octal, applied to media files when imported/renamed by Lidarr"
+                          type={inputTypes.UMASK}
+                          name="chmodFolder"
+                          helpText="Octal, applied during import/rename to media folders and files (without execute bits)"
+                          helpTextWarning="This only works if the user running Lidarr is the owner of the file. It's better to ensure the download client sets the permissions properly."
                           onChange={onInputChange}
-                          {...settings.fileChmod}
-                        />
-                      </FormGroup>
-
-                      <FormGroup
-                        advancedSettings={advancedSettings}
-                        isAdvanced={true}
-                      >
-                        <FormLabel>Folder chmod mode</FormLabel>
-
-                        <FormInputGroup
-                          type={inputTypes.TEXT}
-                          name="folderChmod"
-                          helpText="Octal, applied to artist/album folders created by Lidarr"
-                          values={fileDateOptions}
-                          onChange={onInputChange}
-                          {...settings.folderChmod}
-                        />
-                      </FormGroup>
-
-                      <FormGroup
-                        advancedSettings={advancedSettings}
-                        isAdvanced={true}
-                      >
-                        <FormLabel>chown User</FormLabel>
-
-                        <FormInputGroup
-                          type={inputTypes.TEXT}
-                          name="chownUser"
-                          helpText="Username or uid. Use uid for remote file systems."
-                          values={fileDateOptions}
-                          onChange={onInputChange}
-                          {...settings.chownUser}
+                          {...settings.chmodFolder}
                         />
                       </FormGroup>
 
@@ -434,6 +403,7 @@ class MediaManagement extends Component {
                           type={inputTypes.TEXT}
                           name="chownGroup"
                           helpText="Group name or gid. Use gid for remote file systems."
+                          helpTextWarning="This only works if the user running Lidarr is the owner of the file. It's better to ensure the download client uses the same group as Lidarr."
                           values={fileDateOptions}
                           onChange={onInputChange}
                           {...settings.chownGroup}

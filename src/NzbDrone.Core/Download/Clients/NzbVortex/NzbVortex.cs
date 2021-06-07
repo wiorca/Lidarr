@@ -56,7 +56,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             {
                 var queueItem = new DownloadClientItem();
 
-                queueItem.DownloadClient = Definition.Name;
+                queueItem.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this);
                 queueItem.DownloadId = vortexQueueItem.AddUUID ?? vortexQueueItem.Id.ToString();
                 queueItem.Category = vortexQueueItem.GroupName;
                 queueItem.Title = vortexQueueItem.UiTitle;
@@ -163,7 +163,11 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             catch (Exception ex)
             {
                 _logger.Error(ex, "Unable to connect to NZBVortex");
-                return new ValidationFailure("Host", "Unable to connect to NZBVortex");
+
+                return new NzbDroneValidationFailure("Host", "Unable to connect to NZBVortex")
+                       {
+                           DetailedDescription = ex.Message
+                       };
             }
 
             return null;

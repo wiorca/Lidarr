@@ -186,7 +186,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             {
                 var lowerTitle = title.ToLowerInvariant();
 
-                if (lowerTitle.StartsWith("lidarr:") || lowerTitle.StartsWith("lidarrid:") || lowerTitle.StartsWith("mbid:"))
+                if (IsMbidQuery(lowerTitle))
                 {
                     var slug = lowerTitle.Split(':')[1].Trim();
 
@@ -244,7 +244,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             {
                 var lowerTitle = title.ToLowerInvariant();
 
-                if (lowerTitle.StartsWith("lidarr:") || lowerTitle.StartsWith("lidarrid:") || lowerTitle.StartsWith("mbid:"))
+                if (IsMbidQuery(lowerTitle))
                 {
                     var slug = lowerTitle.Split(':')[1].Trim();
 
@@ -276,7 +276,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                         existingAlbum.Artist = _artistService.GetArtist(existingAlbum.ArtistId);
                         return new List<Album> { existingAlbum };
                     }
-                    catch (ArtistNotFoundException)
+                    catch (AlbumNotFoundException)
                     {
                         return new List<Album>();
                     }
@@ -292,7 +292,9 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
                 var httpResponse = _httpClient.Get<List<AlbumResource>>(httpRequest);
 
-                return httpResponse.Resource.SelectList(MapSearchResult);
+                return httpResponse.Resource.Select(MapSearchResult)
+                    .Where(x => x != null)
+                    .ToList();
             }
             catch (HttpException)
             {
@@ -317,22 +319,51 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
             var httpResponse = _httpClient.Post<List<AlbumResource>>(httpRequest);
 
-            return httpResponse.Resource.SelectList(MapSearchResult);
+            return httpResponse.Resource.Select(MapSearchResult)
+                .Where(x => x != null)
+                .ToList();
         }
 
         public List<object> SearchForNewEntity(string title)
         {
+            var lowerTitle = title.ToLowerInvariant();
+
+            if (IsMbidQuery(lowerTitle))
+            {
+                var artist = SearchForNewArtist(lowerTitle);
+                if (artist.Any())
+                {
+                    return new List<object> { artist.First() };
+                }
+
+                var album = SearchForNewAlbum(lowerTitle, null);
+                if (album.Any())
+                {
+                    var result = album.Where(x => x.AlbumReleases.Value.Any()).FirstOrDefault();
+                    if (result != null)
+                    {
+                        return new List<object> { result };
+                    }
+                    else
+                    {
+                        return new List<object>();
+                    }
+                }
+            }
+
             try
             {
                 var httpRequest = _requestBuilder.GetRequestBuilder().Create()
                                     .SetSegment("route", "search")
                                     .AddQueryParam("type", "all")
-                                    .AddQueryParam("query", title.ToLower().Trim())
+                                    .AddQueryParam("query", lowerTitle.Trim())
                                     .Build();
 
                 var httpResponse = _httpClient.Get<List<EntityResource>>(httpRequest);
 
-                return httpResponse.Resource.SelectList(MapSearchResult);
+                return httpResponse.Resource.Select(MapSearchResult)
+                    .Where(x => x != null)
+                    .ToList();
             }
             catch (HttpException)
             {
@@ -343,6 +374,11 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 _logger.Warn(ex, ex.Message);
                 throw new SkyHookException("Search for '{0}' failed. Invalid response received from LidarrAPI.", title);
             }
+        }
+
+        private static bool IsMbidQuery(string query)
+        {
+            return query.StartsWith("lidarr:") || query.StartsWith("lidarrid:") || query.StartsWith("mbid:");
         }
 
         private Artist MapSearchResult(ArtistResource resource)
@@ -371,6 +407,11 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             var album = _albumService.FindById(resource.Id) ?? MapAlbum(resource, artists);
             album.Artist = artist;
             album.ArtistMetadata = artist.Metadata.Value;
+
+            if (!album.AlbumReleases.Value.Any())
+            {
+                return null;
+            }
 
             return album;
         }

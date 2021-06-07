@@ -70,7 +70,7 @@ namespace NzbDrone.Core.Download.Clients.Transmission
                 item.Category = Settings.MusicCategory;
                 item.Title = torrent.Name;
 
-                item.DownloadClient = Definition.Name;
+                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this);
 
                 item.OutputPath = GetOutputPath(outputPath, torrent);
                 item.TotalSize = torrent.TotalSize;
@@ -164,12 +164,20 @@ namespace NzbDrone.Core.Download.Clients.Transmission
 
         public override DownloadClientInfo GetStatus()
         {
-            var config = _proxy.GetConfig(Settings);
-            var destDir = config.DownloadDir;
-
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+            string destDir;
+            if (Settings.TvDirectory.IsNotNullOrWhiteSpace())
             {
-                destDir = string.Format("{0}/{1}", destDir, Settings.MusicCategory);
+                destDir = Settings.TvDirectory;
+            }
+            else
+            {
+                var config = _proxy.GetConfig(Settings);
+                destDir = config.DownloadDir;
+
+                if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+                {
+                    destDir = string.Format("{0}/{1}", destDir, Settings.MusicCategory);
+                }
             }
 
             return new DownloadClientInfo
@@ -261,15 +269,17 @@ namespace NzbDrone.Core.Download.Clients.Transmission
             }
             catch (DownloadClientUnavailableException ex)
             {
-                _logger.Error(ex, "Unable to connect to transmission");
-                return new NzbDroneValidationFailure("Host", "Unable to connect")
-                {
-                    DetailedDescription = "Please verify the hostname and port."
-                };
+                _logger.Error(ex, ex.Message);
+
+                return new NzbDroneValidationFailure("Host", "Unable to connect to Transmission")
+                       {
+                           DetailedDescription = ex.Message
+                       };
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to test");
+
                 return new NzbDroneValidationFailure(string.Empty, "Unknown exception: " + ex.Message);
             }
         }

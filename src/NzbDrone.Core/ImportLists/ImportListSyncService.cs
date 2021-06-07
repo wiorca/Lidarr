@@ -117,8 +117,8 @@ namespace NzbDrone.Core.ImportLists
                 }
             }
 
-            var addedArtists = _addArtistService.AddArtists(artistsToAdd, false);
-            var addedAlbums = _addAlbumService.AddAlbums(albumsToAdd, false);
+            var addedArtists = _addArtistService.AddArtists(artistsToAdd, false, true);
+            var addedAlbums = _addAlbumService.AddAlbums(albumsToAdd, false, true);
 
             var message = string.Format($"Import List Sync Completed. Items found: {reports.Count}, Artists added: {addedArtists.Count}, Albums added: {addedAlbums.Count}");
 
@@ -202,7 +202,6 @@ namespace NzbDrone.Core.ImportLists
                         QualityProfileId = importList.ProfileId,
                         MetadataProfileId = importList.MetadataProfileId,
                         Tags = importList.Tags,
-                        AlbumFolder = true,
                         AddOptions = new AddArtistOptions
                         {
                             SearchForMissingAlbums = monitored,
@@ -275,7 +274,6 @@ namespace NzbDrone.Core.ImportLists
                     QualityProfileId = importList.ProfileId,
                     MetadataProfileId = importList.MetadataProfileId,
                     Tags = importList.Tags,
-                    AlbumFolder = true,
                     AddOptions = new AddArtistOptions
                     {
                         SearchForMissingAlbums = monitored,

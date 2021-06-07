@@ -19,15 +19,15 @@ namespace NzbDrone.Core.HealthCheck.Checks
         public override HealthCheck Check()
         {
             // Not best for optimization but due to possible symlinks and junctions, we get mounts based on series path so internals can handle mount resolution.
-            var mounts = _artistService.GetAllArtists()
-                                       .Select(artist => _diskProvider.GetMount(artist.Path))
+            var mounts = _artistService.AllArtistPaths()
+                                       .Select(path => _diskProvider.GetMount(path.Value))
                                        .Where(m => m != null && m.MountOptions != null && m.MountOptions.IsReadOnly)
                                        .DistinctBy(m => m.RootDirectory)
                                        .ToList();
 
             if (mounts.Any())
             {
-                return new HealthCheck(GetType(), HealthCheckResult.Error, "Mount containing a artist path is mounted read-only: " + string.Join(",", mounts.Select(m => m.Name)), "#artist-mount-ro");
+                return new HealthCheck(GetType(), HealthCheckResult.Error, "Mount containing a artist path is mounted read-only: " + string.Join(",", mounts.Select(m => m.Name)), "#artist_mount_ro");
             }
 
             return new HealthCheck(GetType());

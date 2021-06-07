@@ -42,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
         private readonly IImportApprovedTracks _importApprovedTracks;
         private readonly ITrackedDownloadService _trackedDownloadService;
         private readonly IDownloadedTracksImportService _downloadedTracksImportService;
+        private readonly IProvideImportItemService _provideImportItemService;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
@@ -58,6 +59,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                                    IImportApprovedTracks importApprovedTracks,
                                    ITrackedDownloadService trackedDownloadService,
                                    IDownloadedTracksImportService downloadedTracksImportService,
+                                   IProvideImportItemService provideImportItemService,
                                    IEventAggregator eventAggregator,
                                    Logger logger)
         {
@@ -74,6 +76,7 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             _importApprovedTracks = importApprovedTracks;
             _trackedDownloadService = trackedDownloadService;
             _downloadedTracksImportService = downloadedTracksImportService;
+            _provideImportItemService = provideImportItemService;
             _eventAggregator = eventAggregator;
             _logger = logger;
         }
@@ -89,7 +92,12 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
                     return new List<ManualImportItem>();
                 }
 
-                path = trackedDownload.DownloadItem.OutputPath.FullPath;
+                if (trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                }
+
+                path = trackedDownload.ImportItem.OutputPath.FullPath;
             }
 
             if (!_diskProvider.FolderExists(path))
@@ -362,21 +370,24 @@ namespace NzbDrone.Core.MediaFiles.TrackImport.Manual
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
+                var importArtist = groupedTrackedDownload.First().ImportResult.ImportDecision.Item.Artist;
 
-                if (_diskProvider.FolderExists(trackedDownload.DownloadItem.OutputPath.FullPath))
+                var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
+
+                if (_diskProvider.FolderExists(outputPath))
                 {
                     if (_downloadedTracksImportService.ShouldDeleteFolder(
-                            _diskProvider.GetDirectoryInfo(trackedDownload.DownloadItem.OutputPath.FullPath),
-                            trackedDownload.RemoteAlbum.Artist) && trackedDownload.DownloadItem.CanMoveFiles)
+                            _diskProvider.GetDirectoryInfo(outputPath),
+                            importArtist) && trackedDownload.DownloadItem.CanMoveFiles)
                     {
-                        _diskProvider.DeleteFolder(trackedDownload.DownloadItem.OutputPath.FullPath, true);
+                        _diskProvider.DeleteFolder(outputPath, true);
                     }
                 }
 
                 if (groupedTrackedDownload.Select(c => c.ImportResult).Count(c => c.Result == ImportResultType.Imported) >= Math.Max(1, trackedDownload.RemoteAlbum.Albums.Count))
                 {
                     trackedDownload.State = TrackedDownloadState.Imported;
-                    _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload));
+                    _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importArtist.Id));
                 }
             }
         }

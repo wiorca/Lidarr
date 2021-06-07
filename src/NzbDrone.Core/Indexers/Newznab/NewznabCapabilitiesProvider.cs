@@ -48,6 +48,7 @@ namespace NzbDrone.Core.Indexers.Newznab
             }
 
             var request = new HttpRequest(url, HttpAccept.Rss);
+            request.AllowAutoRedirect = true;
 
             HttpResponse response;
 
@@ -67,12 +68,15 @@ namespace NzbDrone.Core.Indexers.Newznab
             }
             catch (XmlException ex)
             {
+                ex.WithData(response, 128 * 1024);
+                _logger.Trace("Unexpected Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
                 _logger.Debug(ex, "Failed to parse newznab api capabilities for {0}", indexerSettings.BaseUrl);
-                ex.WithData(response);
                 throw;
             }
             catch (Exception ex)
             {
+                ex.WithData(response, 128 * 1024);
+                _logger.Trace("Unexpected Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
                 _logger.Error(ex, "Failed to determine newznab api capabilities for {0}, using the defaults instead till Lidarr restarts", indexerSettings.BaseUrl);
             }
 
@@ -87,14 +91,16 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (xDoc == null)
             {
-                throw new XmlException("Invalid XML");
+                throw new XmlException("Invalid XML").WithData(response);
             }
+
+            NewznabRssParser.CheckError(xDoc, new IndexerResponse(new IndexerRequest(response.Request), response));
 
             var xmlRoot = xDoc.Element("caps");
 
             if (xmlRoot == null)
             {
-                throw new XmlException("Unexpected XML");
+                throw new XmlException("Unexpected XML").WithData(response);
             }
 
             var xmlLimits = xmlRoot.Element("limits");

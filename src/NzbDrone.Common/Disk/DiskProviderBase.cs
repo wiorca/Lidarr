@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.EnvironmentInfo;
@@ -38,8 +36,10 @@ namespace NzbDrone.Common.Disk
 
         public abstract long? GetAvailableSpace(string path);
         public abstract void InheritFolderPermissions(string filename);
-        public abstract void SetPermissions(string path, string mask, string user, string group);
-        public abstract void CopyPermissions(string sourcePath, string targetPath, bool includeOwner);
+        public abstract void SetEveryonePermissions(string filename);
+        public abstract void SetFilePermissions(string path, string mask, string group);
+        public abstract void SetPermissions(string path, string mask, string group);
+        public abstract void CopyPermissions(string sourcePath, string targetPath);
         public abstract long? GetTotalSize(string path);
 
         public DateTime FolderGetCreationTime(string path)
@@ -138,7 +138,7 @@ namespace NzbDrone.Common.Disk
             {
                 var testPath = Path.Combine(path, "lidarr_write_test.txt");
                 var testContent = $"This file was created to verify if '{path}' is writable. It should've been automatically deleted. Feel free to delete it.";
-                _fileSystem.File.WriteAllText(testPath, testContent);
+                WriteAllText(testPath, testContent);
                 _fileSystem.File.Delete(testPath);
                 return true;
             }
@@ -213,6 +213,24 @@ namespace NzbDrone.Common.Disk
             _fileSystem.File.Delete(path);
         }
 
+        public void CloneFile(string source, string destination, bool overwrite = false)
+        {
+            Ensure.That(source, () => source).IsValidPath();
+            Ensure.That(destination, () => destination).IsValidPath();
+
+            if (source.PathEquals(destination))
+            {
+                throw new IOException(string.Format("Source and destination can't be the same {0}", source));
+            }
+
+            CloneFileInternal(source, destination, overwrite);
+        }
+
+        protected virtual void CloneFileInternal(string source, string destination, bool overwrite = false)
+        {
+            CopyFileInternal(source, destination, overwrite);
+        }
+
         public void CopyFile(string source, string destination, bool overwrite = false)
         {
             Ensure.That(source, () => source).IsValidPath();
@@ -263,7 +281,17 @@ namespace NzbDrone.Common.Disk
             _fileSystem.File.Move(source, destination);
         }
 
+        public virtual bool TryRenameFile(string source, string destination)
+        {
+            return false;
+        }
+
         public abstract bool TryCreateHardLink(string source, string destination);
+
+        public virtual bool TryCreateRefLink(string source, string destination)
+        {
+            return false;
+        }
 
         public void DeleteFolder(string path, bool recursive)
         {
@@ -286,7 +314,16 @@ namespace NzbDrone.Common.Disk
         {
             Ensure.That(filename, () => filename).IsValidPath();
             RemoveReadOnly(filename);
-            _fileSystem.File.WriteAllText(filename, contents);
+
+            // File.WriteAllText is broken on net core when writing to some CIFS mounts
+            // This workaround from https://github.com/dotnet/runtime/issues/42790#issuecomment-700362617
+            using (var fs = new FileStream(filename, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                using (var writer = new StreamWriter(fs))
+                {
+                    writer.Write(contents);
+                }
+            }
         }
 
         public void FolderSetLastWriteTime(string path, DateTime dateTime)
@@ -337,43 +374,6 @@ namespace NzbDrone.Common.Disk
             }
 
             return parent.FullName;
-        }
-
-        public void SetPermissions(string filename, WellKnownSidType accountSid, FileSystemRights rights, AccessControlType controlType)
-        {
-            try
-            {
-                var sid = new SecurityIdentifier(accountSid, null);
-
-                var directoryInfo = _fileSystem.DirectoryInfo.FromDirectoryName(filename);
-                var directorySecurity = directoryInfo.GetAccessControl(AccessControlSections.Access);
-
-                var rules = directorySecurity.GetAccessRules(true, false, typeof(SecurityIdentifier));
-
-                if (rules.OfType<FileSystemAccessRule>().Any(acl => acl.AccessControlType == controlType && (acl.FileSystemRights & rights) == rights && acl.IdentityReference.Equals(sid)))
-                {
-                    return;
-                }
-
-                var accessRule = new FileSystemAccessRule(sid,
-                                                          rights,
-                                                          InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                                          PropagationFlags.InheritOnly,
-                                                          controlType);
-
-                bool modified;
-                directorySecurity.ModifyAccessRule(AccessControlModification.Add, accessRule, out modified);
-
-                if (modified)
-                {
-                    directoryInfo.SetAccessControl(directorySecurity);
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Warn(e, "Couldn't set permission for {0}. account:{1} rights:{2} accessControlType:{3}", filename, accountSid, rights, controlType);
-                throw;
-            }
         }
 
         private static void RemoveReadOnly(string path)
@@ -542,6 +542,11 @@ namespace NzbDrone.Common.Disk
             {
                 stream.CopyTo(fileStream);
             }
+        }
+
+        public virtual bool IsValidFolderPermissionMask(string mask)
+        {
+            throw new NotSupportedException();
         }
     }
 }

@@ -11,7 +11,6 @@ namespace NzbDrone.Core.Organizer
         SampleResult GetStandardTrackSample(NamingConfig nameSpec);
         SampleResult GetMultiDiscTrackSample(NamingConfig nameSpec);
         string GetArtistFolderSample(NamingConfig nameSpec);
-        string GetAlbumFolderSample(NamingConfig nameSpec);
     }
 
     public class FileNameSampleService : IFilenameSampleService
@@ -30,14 +29,15 @@ namespace NzbDrone.Core.Organizer
         public FileNameSampleService(IBuildFileNames buildFileNames)
         {
             _buildFileNames = buildFileNames;
+            var artistMetadata = new ArtistMetadata
+            {
+                Name = "The Artist Name",
+                Disambiguation = "US Rock Band"
+            };
 
             _standardArtist = new Artist
             {
-                Metadata = new ArtistMetadata
-                {
-                    Name = "The Artist Name",
-                    Disambiguation = "US Rock Band"
-                }
+                Metadata = artistMetadata
             };
 
             _standardAlbum = new Album
@@ -87,8 +87,10 @@ namespace NzbDrone.Core.Organizer
             _track1 = new Track
             {
                 AlbumRelease = _singleRelease,
+                Artist = _standardArtist,
                 AbsoluteTrackNumber = 3,
                 MediumNumber = 1,
+                ArtistMetadata = artistMetadata,
 
                 Title = "Track Title (1)",
             };
@@ -154,11 +156,6 @@ namespace NzbDrone.Core.Organizer
         public string GetArtistFolderSample(NamingConfig nameSpec)
         {
             return _buildFileNames.GetArtistFolder(_standardArtist, nameSpec);
-        }
-
-        public string GetAlbumFolderSample(NamingConfig nameSpec)
-        {
-            return _buildFileNames.GetAlbumFolder(_standardArtist, _standardAlbum, nameSpec);
         }
 
         private string BuildTrackSample(List<Track> tracks, Artist artist, Album album, TrackFile trackFile, NamingConfig nameSpec)

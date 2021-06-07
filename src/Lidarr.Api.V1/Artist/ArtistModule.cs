@@ -25,10 +25,11 @@ namespace Lidarr.Api.V1.Artist
     public class ArtistModule : LidarrRestModuleWithSignalR<ArtistResource, NzbDrone.Core.Music.Artist>,
                                 IHandle<AlbumImportedEvent>,
                                 IHandle<AlbumEditedEvent>,
+                                IHandle<AlbumDeletedEvent>,
                                 IHandle<TrackFileDeletedEvent>,
                                 IHandle<ArtistUpdatedEvent>,
                                 IHandle<ArtistEditedEvent>,
-                                IHandle<ArtistDeletedEvent>,
+                                IHandle<ArtistsDeletedEvent>,
                                 IHandle<ArtistRenamedEvent>,
                                 IHandle<MediaCoversUpdatedEvent>
     {
@@ -259,6 +260,11 @@ namespace Lidarr.Api.V1.Artist
             BroadcastResourceChange(ModelAction.Updated, GetArtistResource(message.Album.Artist.Value));
         }
 
+        public void Handle(AlbumDeletedEvent message)
+        {
+            BroadcastResourceChange(ModelAction.Updated, GetArtistResource(message.Album.Artist.Value));
+        }
+
         public void Handle(TrackFileDeletedEvent message)
         {
             if (message.Reason == DeleteMediaFileReason.Upgrade)
@@ -279,9 +285,12 @@ namespace Lidarr.Api.V1.Artist
             BroadcastResourceChange(ModelAction.Updated, GetArtistResource(message.Artist));
         }
 
-        public void Handle(ArtistDeletedEvent message)
+        public void Handle(ArtistsDeletedEvent message)
         {
-            BroadcastResourceChange(ModelAction.Deleted, message.Artist.ToResource());
+            foreach (var artist in message.Artists)
+            {
+                BroadcastResourceChange(ModelAction.Deleted, artist.ToResource());
+            }
         }
 
         public void Handle(ArtistRenamedEvent message)

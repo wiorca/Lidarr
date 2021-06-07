@@ -8,6 +8,7 @@ import CaptchaInputConnector from './CaptchaInputConnector';
 import CheckInput from './CheckInput';
 import DeviceInputConnector from './DeviceInputConnector';
 import EnhancedSelectInput from './EnhancedSelectInput';
+import EnhancedSelectInputConnector from './EnhancedSelectInputConnector';
 import FormInputHelpText from './FormInputHelpText';
 import IndexerSelectInputConnector from './IndexerSelectInputConnector';
 import KeyValueListInput from './KeyValueListInput';
@@ -22,8 +23,10 @@ import QualityProfileSelectInputConnector from './QualityProfileSelectInputConne
 import RootFolderSelectInputConnector from './RootFolderSelectInputConnector';
 import SeriesTypeSelectInput from './SeriesTypeSelectInput';
 import TagInputConnector from './TagInputConnector';
+import TagSelectInputConnector from './TagSelectInputConnector';
 import TextInput from './TextInput';
 import TextTagInputConnector from './TextTagInputConnector';
+import UMaskInput from './UMaskInput';
 import styles from './FormInputGroup.css';
 
 function getComponent(type) {
@@ -79,6 +82,9 @@ function getComponent(type) {
     case inputTypes.SELECT:
       return EnhancedSelectInput;
 
+    case inputTypes.DYNAMIC_SELECT:
+      return EnhancedSelectInputConnector;
+
     case inputTypes.SERIES_TYPE_SELECT:
       return SeriesTypeSelectInput;
 
@@ -87,6 +93,12 @@ function getComponent(type) {
 
     case inputTypes.TEXT_TAG:
       return TextTagInputConnector;
+
+    case inputTypes.UMASK:
+      return UMaskInput;
+
+    case inputTypes.TAG_SELECT:
+      return TagSelectInputConnector;
 
     default:
       return TextInput;
@@ -195,7 +207,7 @@ function FormInputGroup(props) {
       }
 
       {
-        !checkInput && helpTextWarning &&
+        (!checkInput || helpText) && helpTextWarning &&
           <FormInputHelpText
             text={helpTextWarning}
             isWarning={true}
@@ -218,7 +230,7 @@ function FormInputGroup(props) {
               key={index}
               text={error.message}
               link={error.link}
-              linkTooltip={error.detailedMessage}
+              tooltip={error.detailedMessage}
               isError={true}
               isCheckInput={checkInput}
             />
@@ -233,7 +245,7 @@ function FormInputGroup(props) {
               key={index}
               text={warning.message}
               link={warning.link}
-              linkTooltip={warning.detailedMessage}
+              tooltip={warning.detailedMessage}
               isWarning={true}
               isCheckInput={checkInput}
             />

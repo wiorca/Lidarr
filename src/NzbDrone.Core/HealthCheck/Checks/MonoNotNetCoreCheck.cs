@@ -33,6 +33,12 @@ namespace NzbDrone.Core.HealthCheck.Checks
                 return new HealthCheck(GetType());
             }
 
+            // Don't warn on linux x86 - we don't build x86 net core
+            if (OsInfo.IsLinux && RuntimeInformation.ProcessArchitecture == Architecture.X86)
+            {
+                return new HealthCheck(GetType());
+            }
+
             // Check for BSD
             var output = _processProvider.StartAndCapture("uname");
             if (output?.ExitCode == 0 && MonoUnames.Contains(output?.Lines.First().Content))
@@ -43,7 +49,7 @@ namespace NzbDrone.Core.HealthCheck.Checks
             return new HealthCheck(GetType(),
                                    HealthCheckResult.Warning,
                                    "Please upgrade to the .NET Core version of Lidarr",
-                                   "#update-to-net-core-version");
+                                   "#update_to_net_core_version");
         }
 
         public override bool CheckOnSchedule => false;

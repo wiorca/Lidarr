@@ -7,13 +7,13 @@ variables:
   outputFolder: './_output'
   artifactsFolder: './_artifacts'
   testsFolder: './_tests'
-  majorVersion: '0.8.0'
+  majorVersion: '1.0.0'
   minorVersion: $[counter('minorVersion', 1076)]
   lidarrVersion: '$(majorVersion).$(minorVersion)'
   buildName: '$(Build.SourceBranchName).$(lidarrVersion)'
   sentryOrg: 'servarr'
   sentryUrl: 'https://sentry.servarr.com'
-  dotnetVersion: '3.1.401'
+  dotnetVersion: '3.1.407'
   yarnCacheFolder: $(Pipeline.Workspace)/.yarn
 
 trigger:
@@ -23,7 +23,12 @@ trigger:
     - master
 
 pr:
-- develop
+  branches:
+    include:
+    - develop
+  paths:
+    exclude:
+    - src/NzbDrone.Core/Localization/Core
 
 stages:
   - stage: Setup
@@ -59,18 +64,21 @@ stages:
           Linux:
             osName: 'Linux'
             imageName: 'ubuntu-18.04'
+            enableAnalysis: 'true'
           Mac:
             osName: 'Mac'
             imageName: 'macos-10.14'
+            enableAnalysis: 'false'
           Windows:
             osName: 'Windows'
             imageName: 'windows-2019'
+            enableAnalysis: 'false'
 
       pool:
         vmImage: $(imageName)
       variables:
         # Disable stylecop here - linting errors get caught by the analyze task
-        EnableAnalyzers: 'false'
+        EnableAnalyzers: $(enableAnalysis)
       steps:
       - checkout: self
         submodules: true
@@ -135,7 +143,7 @@ stages:
       - task: NodeTool@0
         displayName: Set Node.js version
         inputs:
-          versionSpec: '10.x'
+          versionSpec: '12.x'
       - checkout: self
         submodules: true
         fetchDepth: 1
@@ -288,7 +296,7 @@ stages:
           includeRootFolder: false
           rootFolderOrFile: $(artifactsFolder)/linux-arm/netcoreapp3.1
       - task: ArchiveFiles@2
-        displayName: Create Linux Core tar
+        displayName: Create ARM64 Linux Core tar
         inputs:
           archiveFile: '$(Build.ArtifactStagingDirectory)/Lidarr.$(buildName).linux-core-arm64.tar.gz'
           archiveType: 'tar'
@@ -432,19 +440,19 @@ stages:
           mono520:
             testName: 'Mono 5.20'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-5.20
+            containerImage: ghcr.io/servarr/testimages:mono-5.20
           mono610:
             testName: 'Mono 6.10'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-6.10
+            containerImage: ghcr.io/servarr/testimages:mono-6.10
           mono612:
             testName: 'Mono 6.12'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-6.12
+            containerImage: ghcr.io/servarr/testimages:mono-6.12
           alpine:
             testName: 'Musl Net Core'
             artifactName: LinuxMuslCoreTests
-            containerImage: servarr/testimages:alpine
+            containerImage: ghcr.io/servarr/testimages:alpine
 
       pool:
         vmImage: 'ubuntu-18.04'
@@ -580,24 +588,23 @@ stages:
           mono520:
             testName: 'Mono 5.20'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-5.20
+            containerImage: ghcr.io/servarr/testimages:mono-5.20
             pattern: 'Lidarr.**.linux.tar.gz'
           mono610:
             testName: 'Mono 6.10'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-6.10
+            containerImage: ghcr.io/servarr/testimages:mono-6.10
             pattern: 'Lidarr.**.linux.tar.gz'
           mono612:
             testName: 'Mono 6.12'
             artifactName: LinuxTests
-            containerImage: servarr/testimages:mono-6.12
+            containerImage: ghcr.io/servarr/testimages:mono-6.12
             pattern: 'Lidarr.**.linux.tar.gz'
           alpine:
             testName: 'Musl Net Core'
             artifactName: LinuxMuslCoreTests
-            containerImage: servarr/testimages:alpine
+            containerImage: ghcr.io/servarr/testimages:alpine
             pattern: 'Lidarr.**.linux-musl-core-x64.tar.gz'
-
       pool:
         vmImage: 'ubuntu-18.04'
 
@@ -660,14 +667,14 @@ stages:
             failBuild: true
           Mac:
             osName: 'Mac'
-            imageName: 'macos-10.14' # Fails due to firefox not being installed on image
+            imageName: 'macos-10.14'
             pattern: 'Lidarr.**.osx-core-x64.tar.gz'
-            failBuild: false
+            failBuild: true
           Windows:
             osName: 'Windows'
             imageName: 'windows-2019'
             pattern: 'Lidarr.**.windows-core-x64.zip'
-            failBuild: $(failOnAutomationFailure)
+            failBuild: true
 
       pool:
         vmImage: $(imageName)
@@ -701,20 +708,6 @@ stages:
           cp -r -v ${BUILD_ARTIFACTSTAGINGDIRECTORY}/bin/Lidarr/. ./bin/
         displayName: Move Package Contents
       - bash: |
-          if [[ $OSNAME == "Mac" ]]; then
-          url=https://github.com/mozilla/geckodriver/releases/download/v0.26.0/geckodriver-v0.26.0-macos.tar.gz
-          elif [[ $OSNAME == "Linux" ]]; then
-          url=https://github.com/mozilla/geckodriver/releases/download/v0.26.0/geckodriver-v0.26.0-linux64.tar.gz
-          else
-          echo "Unhandled OS"
-          exit 1
-          fi
-          curl -s -L "$url" | tar -xz
-          chmod +x geckodriver
-          mv geckodriver _tests
-        displayName: Install Gecko Driver
-        condition: and(succeeded(), ne(variables['osName'], 'Windows'))
-      - bash: |
           chmod a+x ${TESTSFOLDER}/test.sh
           ${TESTSFOLDER}/test.sh ${OSNAME} Automation Test
         displayName: Run Automation Tests
@@ -728,6 +721,7 @@ stages:
       - publish: $(Build.ArtifactStagingDirectory)/screenshots
         artifact: '$(osName)AutomationScreenshots'
         displayName: Publish Screenshot Bundle
+        condition: and(succeeded(), eq(variables['System.JobAttempt'], '1'))
       - task: PublishTestResults@2
         inputs:
           testResultsFormat: 'NUnit'
@@ -770,7 +764,7 @@ stages:
       - task: NodeTool@0
         displayName: Set Node.js version
         inputs:
-          versionSpec: '10.x'
+          versionSpec: '12.x'
       - checkout: self
         submodules: true
         fetchDepth: 1
@@ -816,6 +810,8 @@ stages:
 
       variables:
         disable.coverage.autogenerate: 'true'
+        EnableAnalyzers: 'false'
+
       pool:
         vmImage: windows-2019
 

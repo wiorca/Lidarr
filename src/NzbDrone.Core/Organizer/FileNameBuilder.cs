@@ -18,11 +18,9 @@ namespace NzbDrone.Core.Organizer
     public interface IBuildFileNames
     {
         string BuildTrackFileName(List<Track> tracks, Artist artist, Album album, TrackFile trackFile, NamingConfig namingConfig = null, List<string> preferredWords = null);
-        string BuildTrackFilePath(Artist artist, Album album, string fileName, string extension);
-        string BuildAlbumPath(Artist artist, Album album);
+        string BuildTrackFilePath(Artist artist, string fileName, string extension);
         BasicNamingConfig GetBasicNamingConfig(NamingConfig nameSpec);
         string GetArtistFolder(Artist artist, NamingConfig namingConfig = null);
-        string GetAlbumFolder(Artist artist, Album album, NamingConfig namingConfig = null);
     }
 
     public class FileNameBuilder : IBuildFileNames
@@ -108,55 +106,50 @@ namespace NzbDrone.Core.Organizer
                 pattern = namingConfig.MultiDiscTrackFormat;
             }
 
-            var subFolders = pattern.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-            var safePattern = subFolders.Aggregate("", (current, folderLevel) => Path.Combine(current, folderLevel));
-
             var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
             tracks = tracks.OrderBy(e => e.AlbumReleaseId).ThenBy(e => e.TrackNumber).ToList();
 
-            safePattern = FormatTrackNumberTokens(safePattern, "", tracks);
-            safePattern = FormatMediumNumberTokens(safePattern, "", tracks);
-
             AddArtistTokens(tokenHandlers, artist);
             AddAlbumTokens(tokenHandlers, album);
             AddMediumTokens(tokenHandlers, tracks.First().AlbumRelease.Value.Media.SingleOrDefault(m => m.Number == tracks.First().MediumNumber));
-            AddTrackTokens(tokenHandlers, tracks);
+            AddTrackTokens(tokenHandlers, tracks, artist);
             AddTrackFileTokens(tokenHandlers, trackFile);
             AddQualityTokens(tokenHandlers, artist, trackFile);
             AddMediaInfoTokens(tokenHandlers, trackFile);
             AddPreferredWords(tokenHandlers, artist, trackFile, preferredWords);
 
-            var fileName = ReplaceTokens(safePattern, tokenHandlers, namingConfig).Trim();
-            fileName = FileNameCleanupRegex.Replace(fileName, match => match.Captures[0].Value[0].ToString());
-            fileName = TrimSeparatorsRegex.Replace(fileName, string.Empty);
+            var splitPatterns = pattern.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var components = new List<string>();
 
-            return fileName;
+            foreach (var s in splitPatterns)
+            {
+                var splitPattern = s;
+
+                splitPattern = FormatTrackNumberTokens(splitPattern, "", tracks);
+                splitPattern = FormatMediumNumberTokens(splitPattern, "", tracks);
+
+                var component = ReplaceTokens(splitPattern, tokenHandlers, namingConfig).Trim();
+
+                component = FileNameCleanupRegex.Replace(component, match => match.Captures[0].Value[0].ToString());
+                component = TrimSeparatorsRegex.Replace(component, string.Empty);
+
+                if (component.IsNotNullOrWhiteSpace())
+                {
+                    components.Add(component);
+                }
+            }
+
+            return Path.Combine(components.ToArray());
         }
 
-        public string BuildTrackFilePath(Artist artist, Album album, string fileName, string extension)
+        public string BuildTrackFilePath(Artist artist, string fileName, string extension)
         {
             Ensure.That(extension, () => extension).IsNotNullOrWhiteSpace();
 
-            var path = BuildAlbumPath(artist, album);
-
-            return Path.Combine(path, fileName + extension);
-        }
-
-        public string BuildAlbumPath(Artist artist, Album album)
-        {
             var path = artist.Path;
 
-            if (artist.AlbumFolder)
-            {
-                var albumFolder = GetAlbumFolder(artist, album);
-
-                albumFolder = CleanFileName(albumFolder);
-
-                path = Path.Combine(path, albumFolder);
-            }
-
-            return path;
+            return Path.Combine(path, fileName + extension);
         }
 
         public BasicNamingConfig GetBasicNamingConfig(NamingConfig nameSpec)
@@ -211,26 +204,28 @@ namespace NzbDrone.Core.Organizer
                 namingConfig = _namingConfigService.GetConfig();
             }
 
+            var pattern = namingConfig.ArtistFolderFormat;
             var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
             AddArtistTokens(tokenHandlers, artist);
 
-            return CleanFolderName(ReplaceTokens(namingConfig.ArtistFolderFormat, tokenHandlers, namingConfig));
-        }
+            var splitPatterns = pattern.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var components = new List<string>();
 
-        public string GetAlbumFolder(Artist artist, Album album, NamingConfig namingConfig = null)
-        {
-            if (namingConfig == null)
+            foreach (var s in splitPatterns)
             {
-                namingConfig = _namingConfigService.GetConfig();
+                var splitPattern = s;
+
+                var component = ReplaceTokens(splitPattern, tokenHandlers, namingConfig);
+                component = CleanFolderName(component);
+
+                if (component.IsNotNullOrWhiteSpace())
+                {
+                    components.Add(component);
+                }
             }
 
-            var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
-
-            AddAlbumTokens(tokenHandlers, album);
-            AddArtistTokens(tokenHandlers, artist);
-
-            return CleanFolderName(ReplaceTokens(namingConfig.AlbumFolderFormat, tokenHandlers, namingConfig));
+            return Path.Combine(components.ToArray());
         }
 
         public static string CleanTitle(string title)
@@ -306,10 +301,21 @@ namespace NzbDrone.Core.Organizer
             tokenHandlers["{Medium Format}"] = m => medium.Format;
         }
 
-        private void AddTrackTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, List<Track> tracks)
+        private void AddTrackTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, List<Track> tracks, Artist artist)
         {
             tokenHandlers["{Track Title}"] = m => GetTrackTitle(tracks, "+");
             tokenHandlers["{Track CleanTitle}"] = m => CleanTitle(GetTrackTitle(tracks, "and"));
+
+            // Use the track's ArtistMetadata by default, as it will handle the "Various Artists" case
+            // (where the album artist is "Various Artists" but each track has its own artist). Fall back
+            // to the album artist if we don't have any track ArtistMetadata for whatever reason.
+            var firstArtist = tracks.Select(t => t.ArtistMetadata?.Value).FirstOrDefault() ?? artist.Metadata;
+            if (firstArtist != null)
+            {
+                tokenHandlers["{Track ArtistName}"] = m => firstArtist.Name;
+                tokenHandlers["{Track ArtistCleanName}"] = m => CleanTitle(firstArtist.Name);
+                tokenHandlers["{Track ArtistNameThe}"] = m => TitleThe(firstArtist.Name);
+            }
         }
 
         private void AddTrackFileTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, TrackFile trackFile)

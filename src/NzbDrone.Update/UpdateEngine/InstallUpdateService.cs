@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -90,6 +90,12 @@ namespace NzbDrone.Update.UpdateEngine
 
             Verify(installationFolder, processId);
 
+            if (installationFolder.EndsWith(@"\bin\Lidarr") || installationFolder.EndsWith(@"/bin/Lidarr"))
+            {
+                installationFolder = installationFolder.GetParentPath();
+                _logger.Info("Fixed Installation Folder: {0}", installationFolder);
+            }
+
             var appType = _detectApplicationType.GetAppType();
 
             _processProvider.FindProcessByName(ProcessProvider.LIDARR_CONSOLE_PROCESS_NAME);
@@ -122,7 +128,7 @@ namespace NzbDrone.Update.UpdateEngine
                     // Set executable flag on Lidarr app
                     if (OsInfo.IsOsx || (OsInfo.IsLinux && PlatformInfo.IsNetCore))
                     {
-                        _diskProvider.SetPermissions(Path.Combine(installationFolder, "Lidarr"), "0755", null, null);
+                        _diskProvider.SetFilePermissions(Path.Combine(installationFolder, "Lidarr"), "755", null);
                     }
                 }
                 catch (Exception e)
@@ -143,7 +149,7 @@ namespace NzbDrone.Update.UpdateEngine
                     _terminateNzbDrone.Terminate(processId);
 
                     _logger.Info("Waiting for external auto-restart.");
-                    for (int i = 0; i < 5; i++)
+                    for (int i = 0; i < 10; i++)
                     {
                         System.Threading.Thread.Sleep(1000);
 
